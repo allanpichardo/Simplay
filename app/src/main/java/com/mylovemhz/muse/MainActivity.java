@@ -9,9 +9,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -20,12 +23,14 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import com.mylovemhz.simplay.MediaControlFragment;
 import com.mylovemhz.simplay.MusicService;
 import com.mylovemhz.simplay.Track;
 
 import java.io.IOException;
 
-public class MainActivity extends AppCompatActivity implements MusicService.PermissionCallbacks{
+public class MainActivity extends AppCompatActivity implements
+        MusicService.PermissionCallbacks, MediaControlFragment.Callbacks{
 
     private MusicService musicService;
     private boolean isBound = false;
@@ -36,6 +41,8 @@ public class MainActivity extends AppCompatActivity implements MusicService.Perm
             musicService = ((MusicService.LocalBinder)service).getService();
             musicService.setPermissonCallback(MainActivity.this);
             musicService.setSmallIconResource(android.R.drawable.ic_media_play);
+
+            initControls();
 
             isBound = true;
         }
@@ -95,6 +102,13 @@ public class MainActivity extends AppCompatActivity implements MusicService.Perm
                 }
             }
         });
+    }
+
+    private void initControls(){
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        FragmentTransaction transaction = fragmentManager.beginTransaction();
+        transaction.replace(R.id.playerLayout,MediaControlFragment.newInstance(musicService.getMediaSessionToken()));
+        transaction.commit();
     }
 
     @Override
