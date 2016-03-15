@@ -6,6 +6,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.wifi.WifiManager;
@@ -20,6 +22,9 @@ import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
 import android.support.v7.app.NotificationCompat;
 import android.util.Log;
+
+import com.squareup.picasso.Picasso;
+import com.squareup.picasso.Target;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -224,6 +229,9 @@ public class MusicService extends Service
 
         }
         if (getCurrentState() == State.IDLE) {
+            if(trackQueue.size() == 0){
+                return; //nothing to play
+            }
             if(hasPermission(Manifest.permission.WAKE_LOCK)) {
                 if (!wifiLock.isHeld()) {
                     wifiLock.acquire();
@@ -279,7 +287,7 @@ public class MusicService extends Service
     }
 
     private void lowerVolume(){
-       mediaPlayer.setVolume(0.5f,0.5f);
+       mediaPlayer.setVolume(0.5f, 0.5f);
     }
 
     private void restoreVolume(){
@@ -431,7 +439,7 @@ public class MusicService extends Service
         intent.setAction(ACTION_STOP);
         PendingIntent cancelIntent = PendingIntent.getService(getApplicationContext(), 1, intent, 0);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext());
+        final NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext());
         NotificationCompat.MediaStyle style = new NotificationCompat.MediaStyle(builder);
         style.setMediaSession(getMediaSessionToken());
         style.setShowCancelButton(true);
@@ -446,20 +454,49 @@ public class MusicService extends Service
         }
         builder.addAction(generateAction(android.R.drawable.ic_media_next, "Next", ACTION_NEXT)); //2
 
-        builder.setLargeIcon(track.getArtwork())
+        builder
                 .setSmallIcon(smallIcon)
                 .setContentTitle(track.getTitle())
                 .setContentText(track.getArtist())
                 .setDeleteIntent(cancelIntent)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(style);
+        if(!track.getArtworkUrl().isEmpty()){
+            try{
+                Target artTarget = new Target() {
+                    @Override
+                    public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
+                        builder.setLargeIcon(bitmap);
+                        publishNotification(builder);
+                    }
+
+                    @Override
+                    public void onBitmapFailed(Drawable errorDrawable) {
+                        publishNotification(builder);
+                    }
+
+                    @Override
+                    public void onPrepareLoad(Drawable placeHolderDrawable) {
+
+                    }
+                };
+                Picasso.with(this)
+                        .load(track.getArtworkUrl())
+                        .into(artTarget);
+            }catch(IllegalArgumentException e){
+                //no artwork. Ignore.
+                publishNotification(builder);
+            }
+        }
+    }
+
+    private void publishNotification(NotificationCompat.Builder builder){
         if(contentIntent != null){
             builder.setContentIntent(contentIntent);
         }else{
             Log.e(TAG_MUSIC_SERVICE,"Did you forget to setContentIntent()? Nothing will happen " +
                     "when you touch the notification.");
         }
-
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getApplicationContext());
         try {
             notificationManager.notify(ID_NOTIFICATION, builder.build());
@@ -498,8 +535,10 @@ public class MusicService extends Service
             track = getCurrentTrack();
             MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder();
             builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, track.getArtwork());
+            builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI,track.getArtworkUrl());
             builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST, track.getArtist());
             builder.putText(MediaMetadataCompat.METADATA_KEY_TITLE, track.getTitle());
+            builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer.getDuration());
             mediaSession.setMetadata(builder.build());
         } catch (IllegalStateException e) {
             //nothing to update

@@ -29,8 +29,7 @@ import com.mylovemhz.simplay.Track;
 
 import java.io.IOException;
 
-public class MainActivity extends AppCompatActivity implements
-        MusicService.PermissionCallbacks, MediaControlFragment.Callbacks{
+public class MainActivity extends AppCompatActivity implements MusicService.PermissionCallbacks{
 
     private MusicService musicService;
     private boolean isBound = false;
@@ -74,17 +73,22 @@ public class MainActivity extends AppCompatActivity implements
 
                         @Override
                         public String getArtist() {
-                            return "Nobody";
+                            return "Stark & Nimo";
                         }
 
                         @Override
                         public String getTitle() {
-                            return "Test Track";
+                            return "Fading Sonically";
                         }
 
                         @Override
                         public String getUrl() {
                             return "https://archive.org/download/NotDarkAndEmo/03FadingSonically.mp3";
+                        }
+
+                        @Override
+                        public String getArtworkUrl() {
+                            return "https://archive.org/download/NotDarkAndEmo/NotDarkAndEmo.jpg";
                         }
 
                         @Override
@@ -121,16 +125,16 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     protected void onStop() {
-        if(isFinishing()) {
-            unbindService(serviceConnection);
-        }
+        unbindService(serviceConnection);
         super.onStop();
     }
 
     @Override
     protected void onDestroy() {
-        Intent intent = new Intent(this, MusicService.class);
-        stopService(intent);
+        if(!isChangingConfigurations()) {
+            Intent intent = new Intent(this, MusicService.class);
+            stopService(intent);
+        }
         super.onDestroy();
     }
 

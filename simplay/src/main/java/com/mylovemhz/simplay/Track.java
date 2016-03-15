@@ -8,5 +8,6 @@ public interface Track {
     String getArtist();
     String getTitle();
     String getUrl();
+    String getArtworkUrl();
     Bitmap getArtwork();
 }

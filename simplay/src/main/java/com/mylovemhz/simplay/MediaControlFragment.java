@@ -1,7 +1,7 @@
 package com.mylovemhz.simplay;
 
-import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
@@ -25,6 +25,8 @@ import com.squareup.picasso.Picasso;
 public class MediaControlFragment extends Fragment{
 
     private static final String TAG = "MediaControlFragment";
+    private static final String STATE_TOKEN = "state_token";
+    private static final long INTERVAL_SEEKBAR = 1000 / 60;
 
     private ImageButton playPauseButton;
     private ImageButton previousButton;
@@ -34,7 +36,6 @@ public class MediaControlFragment extends Fragment{
     private ImageView albumImage;
     private SeekBar seekBar;
     private String artUrl;
-    private Callbacks callbacks;
     private MediaControllerCompat mediaController;
     private MediaSessionCompat.Token token;
 
@@ -42,6 +43,20 @@ public class MediaControlFragment extends Fragment{
     private int pauseDrawableResource;
     private int nextDrawable;
     private int previousDrawable;
+
+    private Handler handler = new Handler();
+    private Runnable seekTickRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if(mediaController.getPlaybackState() != null) {
+                seekBar.setSecondaryProgress((int) mediaController.getPlaybackState().getBufferedPosition());
+                if (getPlaybackState() == PlaybackStateCompat.STATE_PLAYING) {
+                    seekBar.setProgress((int) mediaController.getPlaybackState().getPosition());
+                }
+                handler.postDelayed(this,INTERVAL_SEEKBAR);
+            }
+        }
+    };
 
     // Receive callbacks from the MediaController. Here we update our state such as which queue
     // is being shown, the current title and description and the PlaybackState.
@@ -98,6 +113,10 @@ public class MediaControlFragment extends Fragment{
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        if(savedInstanceState != null){
+            token = savedInstanceState.getParcelable(STATE_TOKEN);
+        }
+
         albumImage = (ImageView)view.findViewById(R.id.albumImage);
         artistText = (TextView)view.findViewById(R.id.artistText);
         nextButton = (ImageButton)view.findViewById(R.id.nextButton);
@@ -112,33 +131,96 @@ public class MediaControlFragment extends Fragment{
             Log.e(TAG,e.getMessage());
         }
 
-        initViews(savedInstanceState);
+        initViews();
     }
 
-    private void initViews(Bundle savedInstanceState){
-        nextButton.setImageResource(R.drawable.ic_next);
-        playPauseButton.setImageResource(R.drawable.ic_play);
-        previousButton.setImageResource(R.drawable.ic_previous);
-        if(savedInstanceState != null){
-            //TODO restore view states
+    private void initViews(){
+        nextButton.setImageResource(nextDrawable);
+        playPauseButton.setImageResource(playDrawableResource);
+        previousButton.setImageResource(previousDrawable);
+
+        readMetadata(mediaController.getMetadata());
+        configureButtons(mediaController.getPlaybackState());
+    }
+
+    private void configureButtons(PlaybackStateCompat state){
+        if (state == null) {
+            return;
         }
-    }
+        boolean enablePlay = false;
+        switch (state.getState()) {
+            case PlaybackStateCompat.STATE_STOPPED:
+                albumImage.setImageResource(R.drawable.ic_album);
+                artistText.setText("");
+                titleText.setText("");
+                seekBar.setProgress(0);
+                seekBar.setMax(1);
+            case PlaybackStateCompat.STATE_PAUSED:
+                handler.removeCallbacks(seekTickRunnable);
+                enablePlay = true;
+                break;
+            case PlaybackStateCompat.STATE_PLAYING:
+                handler.post(seekTickRunnable);
+                break;
+            case PlaybackStateCompat.STATE_ERROR:
+                Log.e(TAG, "error playbackstate: " + state.getErrorMessage());
+                Toast.makeText(getActivity(), state.getErrorMessage(), Toast.LENGTH_LONG).show();
+                break;
+        }
 
-    @Override
-    public void onAttach(Context context) {
-        super.onAttach(context);
-        if (context instanceof Callbacks) {
-            callbacks = (Callbacks) context;
+        if (enablePlay) {
+            playPauseButton.setImageResource(playDrawableResource);
         } else {
-            throw new RuntimeException(context.toString()
-                    + " must implement Callbacks");
+            playPauseButton.setImageResource(pauseDrawableResource);
         }
+        playPauseButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (getPlaybackState() != PlaybackStateCompat.STATE_PLAYING) {
+                    mediaController.getTransportControls().play();
+                } else {
+                    mediaController.getTransportControls().pause();
+                }
+            }
+        });
+        previousButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mediaController.getTransportControls().skipToPrevious();
+            }
+        });
+        nextButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mediaController.getTransportControls().skipToPrevious();
+            }
+        });
     }
 
     @Override
-    public void onDetach() {
-        super.onDetach();
-        callbacks = null;
+    public void onSaveInstanceState(Bundle outState) {
+        outState.putParcelable(STATE_TOKEN, token);
+        super.onSaveInstanceState(outState);
+    }
+
+    private void readMetadata(MediaMetadataCompat metadata){
+        if(metadata != null) {
+            seekBar.setMax((int) metadata.getLong(MediaMetadataCompat.METADATA_KEY_DURATION));
+            artistText.setText(metadata.getText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST));
+            titleText.setText(metadata.getText(MediaMetadataCompat.METADATA_KEY_TITLE));
+            String artUrl = metadata.getText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI).toString();
+            if (!artUrl.equals(this.artUrl)) {
+                this.artUrl = artUrl;
+                try {
+                    Picasso.with(getContext().getApplicationContext())
+                            .load(this.artUrl)
+                            .into(albumImage);
+                } catch (IllegalArgumentException e) {
+                    //no artwork
+                    albumImage.setImageResource(R.drawable.ic_album);
+                }
+            }
+        }
     }
 
     private void onMetadataChanged(MediaMetadataCompat metadata) {
@@ -152,23 +234,7 @@ public class MediaControlFragment extends Fragment{
             return;
         }
 
-        artistText.setText(metadata.getDescription().getTitle());
-        titleText.setText(metadata.getDescription().getSubtitle());
-        String artUrl = "";
-        if (metadata.getDescription().getIconUri() != null) {
-            artUrl = metadata.getDescription().getIconUri().toString();
-        }
-        if (!artUrl.equals(this.artUrl)) {
-            this.artUrl = artUrl;
-            try {
-                Picasso.with(getContext().getApplicationContext())
-                        .load(this.artUrl)
-                        .into(albumImage);
-            }catch(IllegalArgumentException e){
-                //no artwork
-                albumImage.setImageResource(R.drawable.ic_album);
-            }
-        }
+        readMetadata(metadata);
     }
 
     private void onPlaybackStateChanged(PlaybackStateCompat state) {
@@ -178,39 +244,11 @@ public class MediaControlFragment extends Fragment{
                     "this should not happen if the callback was properly unregistered. Ignoring.");
             return;
         }
-        if (state == null) {
-            return;
-        }
-        boolean enablePlay = false;
-        switch (state.getState()) {
-            case PlaybackStateCompat.STATE_PAUSED:
-            case PlaybackStateCompat.STATE_STOPPED:
-                enablePlay = true;
-                break;
-            case PlaybackStateCompat.STATE_ERROR:
-                Log.e(TAG, "error playbackstate: " + state.getErrorMessage());
-                Toast.makeText(getActivity(), state.getErrorMessage(), Toast.LENGTH_LONG).show();
-                break;
-        }
 
-        if (enablePlay) {
-            playPauseButton.setImageResource(playDrawableResource);
-        } else {
-            playPauseButton.setImageResource(pauseDrawableResource);
-        }
-
-        MediaControllerCompat controller = getActivity().getSupportMediaController();
-//        String extraInfo = null;
-//        if (controller != null && controller.getExtras() != null) {
-//            String castName = controller.getExtras().getString(MusicService.EXTRA_CONNECTED_CAST);
-//            if (castName != null) {
-//                extraInfo = getResources().getString(R.string.casting_to_device, castName);
-//            }
-//        }
-//        setExtraInfo(extraInfo);
+        configureButtons(state);
     }
 
-    public interface Callbacks {
-
+    public int getPlaybackState(){
+        return mediaController.getPlaybackState().getState();
     }
 }
