@@ -12,8 +12,38 @@
     tools:context="com.mylovemhz.muse.MainActivity"
     tools:showIn="@layout/activity_main">
 
+    <TextView
+        android:id="@+id/listText"
+        android:layout_alignParentTop="true"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/available_songs"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+    <ListView
+        android:id="@+id/songsList"
+        android:layout_below="@id/listText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/queueText"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium"
+        android:layout_below="@id/songsList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/queued" />
+
+    <ListView
+        android:id="@+id/queuedList"
+        android:layout_alignParentBottom="true"
+        android:layout_below="@+id/queueText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
     <FrameLayout
         android:id="@+id/playerLayout"
+        android:layout_alignParentBottom="true"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"></FrameLayout>
+        android:layout_height="wrap_content"/>
 </RelativeLayout>

@@ -64,7 +64,7 @@ public class MusicService extends Service
     private MediaSessionCompat mediaSession;
     private State currentState;
     private WifiManager.WifiLock wifiLock;
-    private PermissionCallbacks permissionCallbacks;
+    private Callbacks callbacks;
 
     private ArrayList<Track> trackQueue;
     private int currentTrackIndex = 0;
@@ -84,14 +84,14 @@ public class MusicService extends Service
         trackQueue = new ArrayList<>();
 
 
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            mediaPlayer.setOnCompletionListener(this);
-            mediaPlayer.setOnErrorListener(this);
-            mediaPlayer.setOnPreparedListener(this);
-            mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-            wifiLock = ((WifiManager) getSystemService(Context.WIFI_SERVICE))
-                    .createWifiLock(WifiManager.WIFI_MODE_FULL, "music lock");
+        mediaPlayer = new MediaPlayer();
+        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        mediaPlayer.setOnCompletionListener(this);
+        mediaPlayer.setOnErrorListener(this);
+        mediaPlayer.setOnPreparedListener(this);
+        mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
+        wifiLock = ((WifiManager) getSystemService(Context.WIFI_SERVICE))
+                .createWifiLock(WifiManager.WIFI_MODE_FULL, "music lock");
 
 
         ComponentName receiver = new ComponentName(getPackageName(), MediaButtonEventReceiver.class.getName());
@@ -107,7 +107,7 @@ public class MusicService extends Service
         Log.d(TAG_MUSIC_SERVICE, "Initialized...");
     }
 
-    public boolean hasPermission(String permission){
+    public boolean hasPermission(String permission) {
         return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED;
     }
 
@@ -115,13 +115,13 @@ public class MusicService extends Service
         return currentState;
     }
 
-    public void setContentIntent(PendingIntent contentIntent){
+    public void setContentIntent(PendingIntent contentIntent) {
         this.contentIntent = contentIntent;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(!isInitialized) {
+        if (!isInitialized) {
             initialize();
         }
         handleIntent(intent);
@@ -161,7 +161,7 @@ public class MusicService extends Service
 
     @Override
     public void onPrepared(MediaPlayer mp) {
-        Log.d(TAG_MUSIC_SERVICE,"prepared");
+        Log.d(TAG_MUSIC_SERVICE, "prepared");
         currentState = State.PREPARED;
         updateSessionState(PlaybackStateCompat.STATE_BUFFERING);
         showNotification();
@@ -172,7 +172,11 @@ public class MusicService extends Service
     public void onCompletion(MediaPlayer mp) {
         if (!mp.isLooping()) {
             currentState = State.COMPLETED;
-            next();
+            if(hasNext()) {
+                next();
+            }else{
+                stop();
+            }
         }
     }
 
@@ -192,6 +196,10 @@ public class MusicService extends Service
         mediaPlayer = null;
         currentState = State.END;
         mediaSession.release();
+    }
+
+    public List<Track> getTracks() {
+        return trackQueue;
     }
 
     public void addTrack(Track track) throws Exception {
@@ -223,16 +231,16 @@ public class MusicService extends Service
             return; //Failed to gain audio focus
         }
 
-        if(getCurrentState() == State.STOPPED){
+        if (getCurrentState() == State.STOPPED) {
             mediaPlayer.reset();
             currentState = State.IDLE;
 
         }
         if (getCurrentState() == State.IDLE) {
-            if(trackQueue.size() == 0){
+            if (trackQueue.size() == 0) {
                 return; //nothing to play
             }
-            if(hasPermission(Manifest.permission.WAKE_LOCK)) {
+            if (hasPermission(Manifest.permission.WAKE_LOCK)) {
                 if (!wifiLock.isHeld()) {
                     wifiLock.acquire();
                 }
@@ -241,10 +249,10 @@ public class MusicService extends Service
                 currentState = State.INITIALIZED;
                 mediaPlayer.prepareAsync();
                 currentState = State.PREPARING;
-            }else{
+            } else {
                 Log.e(TAG_MUSIC_SERVICE, "need permission " + Manifest.permission.WAKE_LOCK);
-                if(permissionCallbacks != null){
-                    permissionCallbacks.onPermissionRequired(
+                if (callbacks != null) {
+                    callbacks.onPermissionRequired(
                             REQUEST_PERMISSION_WAKE_LOCK,
                             Manifest.permission.WAKE_LOCK,
                             RATIONALE_WAKE_LOCK);
@@ -253,20 +261,20 @@ public class MusicService extends Service
         }
     }
 
-    private void updateSessionState(int state){
+    private void updateSessionState(int state) {
         int position = 0;
-        if(currentState == State.STARTED ||
-                currentState == State.PAUSED){
+        if (currentState == State.STARTED ||
+                currentState == State.PAUSED) {
             position = mediaPlayer.getCurrentPosition();
         }
         PlaybackStateCompat.Builder builder = new PlaybackStateCompat.Builder();
-        builder.setState(state,position,1f);
+        builder.setState(state, position, 1f);
         mediaSession.setPlaybackState(builder.build());
     }
 
     @Override
     public void onAudioFocusChange(int focusChange) {
-        switch(focusChange){
+        switch (focusChange) {
             case AudioManager.AUDIOFOCUS_LOSS:
                 stop();
                 break;
@@ -286,11 +294,11 @@ public class MusicService extends Service
         }
     }
 
-    private void lowerVolume(){
-       mediaPlayer.setVolume(0.5f, 0.5f);
+    private void lowerVolume() {
+        mediaPlayer.setVolume(0.5f, 0.5f);
     }
 
-    private void restoreVolume(){
+    private void restoreVolume() {
         mediaPlayer.setVolume(1f, 1f);
     }
 
@@ -301,8 +309,9 @@ public class MusicService extends Service
             currentState = State.STARTED;
             updateSessionState(PlaybackStateCompat.STATE_PLAYING);
             showNotification();
+            if(callbacks != null) callbacks.onPlaybackStarted();
         }
-        if(currentState == State.STOPPED || currentState == State.COMPLETED){
+        if (currentState == State.STOPPED || currentState == State.COMPLETED) {
             try {
                 cueTrack();
             } catch (IOException e) {
@@ -321,7 +330,7 @@ public class MusicService extends Service
     }
 
     public void stop() {
-        Log.d(TAG_MUSIC_SERVICE,"stop()");
+        Log.d(TAG_MUSIC_SERVICE, "stop()");
         if (currentState == State.STARTED || currentState == State.PAUSED ||
                 currentState == State.PREPARED || currentState == State.COMPLETED) {
             mediaPlayer.stop();
@@ -330,14 +339,15 @@ public class MusicService extends Service
             currentTrackIndex = 0;
             trackQueue = new ArrayList<>();
             removeNotification();
-            if(wifiLock.isHeld()){
+            if (wifiLock.isHeld()) {
                 wifiLock.release();
             }
+            if(callbacks != null)callbacks.onPlaybackStopped();
         }
     }
 
     public void next() {
-        if(hasNext()) {
+        if (hasNext()) {
             if (currentState == State.STARTED || currentState == State.PAUSED) {
                 mediaPlayer.stop();
                 currentState = State.STOPPED;
@@ -362,7 +372,7 @@ public class MusicService extends Service
     }
 
     public void previous() {
-        if(hasPrevious()) {
+        if (hasPrevious()) {
             if (currentState == State.STARTED || currentState == State.PAUSED) {
                 mediaPlayer.stop();
                 currentState = State.STOPPED;
@@ -447,9 +457,9 @@ public class MusicService extends Service
         style.setShowActionsInCompactView(1);
 
         builder.addAction(generateAction(android.R.drawable.ic_media_previous, "Previous", ACTION_PREVIOUS)); //0
-        if(!isPlaying()) {
+        if (!isPlaying()) {
             builder.addAction(generateAction(android.R.drawable.ic_media_play, "Play", ACTION_PLAY)); // 1
-        }else {
+        } else {
             builder.addAction(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE)); //1
         }
         builder.addAction(generateAction(android.R.drawable.ic_media_next, "Next", ACTION_NEXT)); //2
@@ -461,8 +471,8 @@ public class MusicService extends Service
                 .setDeleteIntent(cancelIntent)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(style);
-        if(!track.getArtworkUrl().isEmpty()){
-            try{
+        if (!track.getArtworkUrl().isEmpty()) {
+            try {
                 Target artTarget = new Target() {
                     @Override
                     public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
@@ -483,41 +493,43 @@ public class MusicService extends Service
                 Picasso.with(this)
                         .load(track.getArtworkUrl())
                         .into(artTarget);
-            }catch(IllegalArgumentException e){
+            } catch (IllegalArgumentException e) {
                 //no artwork. Ignore.
                 publishNotification(builder);
             }
+        }else{
+            publishNotification(builder);
         }
     }
 
-    private void publishNotification(NotificationCompat.Builder builder){
-        if(contentIntent != null){
+    private void publishNotification(NotificationCompat.Builder builder) {
+        if (contentIntent != null) {
             builder.setContentIntent(contentIntent);
-        }else{
-            Log.e(TAG_MUSIC_SERVICE,"Did you forget to setContentIntent()? Nothing will happen " +
+        } else {
+            Log.e(TAG_MUSIC_SERVICE, "Did you forget to setContentIntent()? Nothing will happen " +
                     "when you touch the notification.");
         }
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getApplicationContext());
         try {
             notificationManager.notify(ID_NOTIFICATION, builder.build());
-        }catch(IllegalStateException e){
-            Log.e(TAG_MUSIC_SERVICE,"Did you forget to setSmallIconResource() in your onBind()?");
+        } catch (IllegalStateException e) {
+            Log.e(TAG_MUSIC_SERVICE, "Did you forget to setSmallIconResource() in your onBind()?");
         }
     }
 
-    public boolean hasNext(){
+    public boolean hasNext() {
         return (trackQueue.size() > 0) && (currentTrackIndex < trackQueue.size() - 1);
     }
 
-    public boolean hasPrevious(){
+    public boolean hasPrevious() {
         return (trackQueue.size() > 0) && (currentTrackIndex > 0);
     }
 
-    public PlaybackStateCompat getPlaybackState(){
+    public PlaybackStateCompat getPlaybackState() {
         return mediaSession.getController().getPlaybackState();
     }
 
-    public boolean isPlaying(){
+    public boolean isPlaying() {
         int state = getPlaybackState().getState();
         return state == PlaybackStateCompat.STATE_BUFFERING ||
                 state == PlaybackStateCompat.STATE_FAST_FORWARDING ||
@@ -525,7 +537,7 @@ public class MusicService extends Service
                 state == PlaybackStateCompat.STATE_REWINDING;
     }
 
-    public void setSmallIconResource(int resId){
+    public void setSmallIconResource(int resId) {
         this.smallIcon = resId;
     }
 
@@ -534,8 +546,7 @@ public class MusicService extends Service
         try {
             track = getCurrentTrack();
             MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder();
-            builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, track.getArtwork());
-            builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI,track.getArtworkUrl());
+            builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, track.getArtworkUrl());
             builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST, track.getArtist());
             builder.putText(MediaMetadataCompat.METADATA_KEY_TITLE, track.getTitle());
             builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer.getDuration());
@@ -545,24 +556,24 @@ public class MusicService extends Service
         }
     }
 
-    private void removeNotification(){
+    private void removeNotification() {
         NotificationManagerCompat manager = NotificationManagerCompat.from(getApplicationContext());
         manager.cancel(ID_NOTIFICATION);
     }
 
-    public void setPermissonCallback(PermissionCallbacks callback){
-        this.permissionCallbacks = callback;
+    public void setCallback(Callbacks callback) {
+        this.callbacks = callback;
     }
 
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[], int[] grantResults) {
-        if(requestCode == REQUEST_PERMISSION_WAKE_LOCK){
+        if (requestCode == REQUEST_PERMISSION_WAKE_LOCK) {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 try {
                     cueTrack();
                 } catch (IOException e) {
-                    Log.e(TAG_MUSIC_SERVICE,e.getMessage());
+                    Log.e(TAG_MUSIC_SERVICE, e.getMessage());
                     stop();
                 }
             } else {
@@ -573,7 +584,9 @@ public class MusicService extends Service
         }
     }
 
-    public interface PermissionCallbacks{
+    public interface Callbacks {
         void onPermissionRequired(int requestCode, String permission, String rationale);
+        void onPlaybackStarted();
+        void onPlaybackStopped();
     }
 }
