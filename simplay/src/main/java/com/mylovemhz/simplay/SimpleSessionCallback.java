@@ -42,7 +42,7 @@ public class SimpleSessionCallback extends MediaSessionCompat.Callback {
     @Override
     public void onSeekTo(long pos) {
         Log.d(TAG_DEBUG, "seek to: " + pos);
-
+        musicService.seekTo((int) pos);
     }
 
     @Override

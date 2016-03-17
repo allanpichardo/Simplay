@@ -185,6 +185,7 @@ public class MusicService extends Service
         currentState = State.ERROR;
         mp.reset();
         currentState = State.IDLE;
+        if(callbacks != null) callbacks.onError();
         return true;
     }
 
@@ -249,6 +250,7 @@ public class MusicService extends Service
                 currentState = State.INITIALIZED;
                 mediaPlayer.prepareAsync();
                 currentState = State.PREPARING;
+                if(callbacks != null) callbacks.onLoading();
             } else {
                 Log.e(TAG_MUSIC_SERVICE, "need permission " + Manifest.permission.WAKE_LOCK);
                 if (callbacks != null) {
@@ -406,6 +408,14 @@ public class MusicService extends Service
         }
     }
 
+    public void seekTo(int position){
+        if (currentState == State.STARTED || currentState == State.PAUSED ||
+                currentState == State.PREPARED || currentState == State.COMPLETED) {
+                mediaPlayer.seekTo(position);
+                updateSessionState(PlaybackStateCompat.STATE_FAST_FORWARDING);
+        }
+    }
+
     public void rewind() {
         if (currentState == State.STARTED || currentState == State.PAUSED ||
                 currentState == State.PREPARED || currentState == State.COMPLETED) {
@@ -542,17 +552,19 @@ public class MusicService extends Service
     }
 
     private void updateMetadata() {
-        Track track;
-        try {
-            track = getCurrentTrack();
-            MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder();
-            builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, track.getArtworkUrl());
-            builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST, track.getArtist());
-            builder.putText(MediaMetadataCompat.METADATA_KEY_TITLE, track.getTitle());
-            builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer.getDuration());
-            mediaSession.setMetadata(builder.build());
-        } catch (IllegalStateException e) {
-            //nothing to update
+        if(getCurrentState() == State.PREPARED) {
+            Track track;
+            try {
+                track = getCurrentTrack();
+                MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder();
+                builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, track.getArtworkUrl());
+                builder.putText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST, track.getArtist());
+                builder.putText(MediaMetadataCompat.METADATA_KEY_TITLE, track.getTitle());
+                builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer.getDuration());
+                mediaSession.setMetadata(builder.build());
+            } catch (IllegalStateException e) {
+                //nothing to update
+            }
         }
     }
 
@@ -586,7 +598,9 @@ public class MusicService extends Service
 
     public interface Callbacks {
         void onPermissionRequired(int requestCode, String permission, String rationale);
+        void onLoading();
         void onPlaybackStarted();
         void onPlaybackStopped();
+        void onError();
     }
 }

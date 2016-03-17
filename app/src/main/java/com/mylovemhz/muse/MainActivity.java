@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
@@ -14,6 +15,8 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.ListView;
 
 import com.mylovemhz.simplay.MediaControlFragment;
@@ -124,8 +127,14 @@ public class MainActivity extends AppCompatActivity
             builder.create().show();
         } else {
             // No explanation needed, we can request the permission.
-            askForPermission(requestCode,permission);
+            askForPermission(requestCode, permission);
         }
+    }
+
+    @Override
+    public void onLoading() {
+        Snackbar sb = Snackbar.make(findViewById(R.id.coordinatorLayout),"Loading track...",Snackbar.LENGTH_SHORT);
+        sb.show();
     }
 
     @Override
@@ -136,6 +145,12 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onPlaybackStopped() {
         hideMediaControls();
+        refreshQueue();
+    }
+
+    @Override
+    public void onError() {
+
     }
 
     private void askForPermission(int requestCode, String permission){
@@ -151,16 +166,39 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    private void refreshQueue(){
+        queueList.setAdapter(new QueueAdapter(musicService.getTracks()));
+    }
+
     @Override
     public void onTrackSelected(Track track) {
         if(isBound){
             if(mediaControlFragment == null) initMediaControls();
             try {
                 musicService.addTrack(track);
-                queueList.setAdapter(new QueueAdapter(musicService.getTracks()));
+                refreshQueue();
             } catch (Exception e) {
                 Log.e("Track queue example",e.getMessage());
             }
         }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main,menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if(item.getItemId() == R.id.clearItem){
+            if(isBound){
+                musicService.stop();
+                musicService.clearTrackQueue();
+                refreshQueue();
+                return true;
+            }
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
