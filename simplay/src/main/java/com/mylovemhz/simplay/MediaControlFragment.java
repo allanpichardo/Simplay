@@ -26,6 +26,10 @@ public class MediaControlFragment extends Fragment{
 
     private static final String TAG = "MediaControlFragment";
     private static final String STATE_TOKEN = "state_token";
+    private static final String STATE_PREVIOUS = "state_previous";
+    private static final String STATE_NEXT = "state_next";
+    private static final String STATE_PLAY = "state_play";
+    private static final String STATE_PAUSE = "state_pause";
     private static final long INTERVAL_SEEKBAR = 1000 / 60;
 
     private ImageButton playPauseButton;
@@ -35,7 +39,6 @@ public class MediaControlFragment extends Fragment{
     private TextView titleText;
     private ImageView albumImage;
     private SeekBar seekBar;
-    private String artUrl;
     private MediaControllerCompat mediaController;
     private MediaSessionCompat.Token token;
 
@@ -115,6 +118,10 @@ public class MediaControlFragment extends Fragment{
 
         if(savedInstanceState != null){
             token = savedInstanceState.getParcelable(STATE_TOKEN);
+            previousDrawable = savedInstanceState.getInt(STATE_PREVIOUS);
+            pauseDrawableResource = savedInstanceState.getInt(STATE_PAUSE);
+            playDrawableResource = savedInstanceState.getInt(STATE_PLAY);
+            nextDrawable = savedInstanceState.getInt(STATE_NEXT);
         }
 
         albumImage = (ImageView)view.findViewById(R.id.albumImage);
@@ -198,7 +205,7 @@ public class MediaControlFragment extends Fragment{
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if(fromUser){
+                if (fromUser) {
                     mediaController.getTransportControls().seekTo(progress);
                 }
             }
@@ -218,6 +225,10 @@ public class MediaControlFragment extends Fragment{
     @Override
     public void onSaveInstanceState(Bundle outState) {
         outState.putParcelable(STATE_TOKEN, token);
+        outState.putInt(STATE_PREVIOUS,previousDrawable);
+        outState.putInt(STATE_PAUSE,pauseDrawableResource);
+        outState.putInt(STATE_PLAY,playDrawableResource);
+        outState.putInt(STATE_NEXT,nextDrawable);
         super.onSaveInstanceState(outState);
     }
 
@@ -227,16 +238,13 @@ public class MediaControlFragment extends Fragment{
             artistText.setText(metadata.getText(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST));
             titleText.setText(metadata.getText(MediaMetadataCompat.METADATA_KEY_TITLE));
             String artUrl = metadata.getText(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI).toString();
-            if (!artUrl.equals(this.artUrl)) {
-                this.artUrl = artUrl;
-                try {
-                    Picasso.with(getContext().getApplicationContext())
-                            .load(this.artUrl)
-                            .into(albumImage);
-                } catch (IllegalArgumentException e) {
-                    //no artwork
-                    albumImage.setImageResource(R.drawable.ic_album);
-                }
+            try {
+                Picasso.with(getContext().getApplicationContext())
+                        .load(artUrl)
+                        .into(albumImage);
+            } catch (IllegalArgumentException e) {
+                //no artwork
+                albumImage.setImageResource(R.drawable.ic_album);
             }
         }
     }
