@@ -81,10 +81,12 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void hideMediaControls(){
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        FragmentTransaction transaction = fragmentManager.beginTransaction();
-        transaction.remove(mediaControlFragment);
-        transaction.commit();
+        if(!isFinishing()) {
+            FragmentManager fragmentManager = getSupportFragmentManager();
+            FragmentTransaction transaction = fragmentManager.beginTransaction();
+            transaction.remove(mediaControlFragment);
+            transaction.commit();
+        }
     }
 
     @Override

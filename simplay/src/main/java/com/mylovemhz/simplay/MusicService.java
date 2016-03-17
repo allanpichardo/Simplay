@@ -28,7 +28,9 @@ import com.squareup.picasso.Target;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 public class MusicService extends Service
@@ -77,6 +79,8 @@ public class MusicService extends Service
             return MusicService.this;
         }
     }
+
+    final Set<Target> temporaryTargets = new HashSet<>();
 
     private final IBinder binder = new LocalBinder();
 
@@ -488,11 +492,13 @@ public class MusicService extends Service
                     public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
                         builder.setLargeIcon(bitmap);
                         publishNotification(builder);
+                        temporaryTargets.remove(this);
                     }
 
                     @Override
                     public void onBitmapFailed(Drawable errorDrawable) {
                         publishNotification(builder);
+                        temporaryTargets.remove(this);
                     }
 
                     @Override
@@ -500,6 +506,7 @@ public class MusicService extends Service
 
                     }
                 };
+                temporaryTargets.add(artTarget);
                 Picasso.with(this)
                         .load(track.getArtworkUrl())
                         .into(artTarget);

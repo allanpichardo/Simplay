@@ -1,12 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<items version="2" >
-
-    <item
-        jar="/Users/allanpichardo/Documents/Muse/app/build/intermediates/exploded-aar/Muse/simplay/unspecified/jars/classes.jar"
-        jumboMode="false"
-        revision="22.0.1"
-        sha1="9a4f1623b0b54f980de1776c9640712e722e04db">
-        <dex dex="/Users/allanpichardo/Documents/Muse/app/build/intermediates/pre-dexed/debug/Muse-simplay-unspecified_c4926a805a5fd8bba4e27cf4658a3b01336df110.jar" />
-    </item>
-
-</items>
+<items version="2" />
