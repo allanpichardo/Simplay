@@ -69,7 +69,7 @@ All subsequent tracks will be queued to be played after the previous ends.
 ### The MediaControlFragment
 The <b>MediaControlFragment</b> implements some basic transport and metadata controls that you can drop into your activity if you don't want to implement your own. There are default transport icons, but you may provide your own using the static instanciation methods. Just make sure you have bound to the <b>MusicService</b> and pass a reference to the MediaSession token.
 ```java
-MediaControlFragment mediaControlFragment = MediaControlFragment.newInstance(musicService.getMediaSessionToken());
+mediaControlFragment = MediaControlFragment.newInstance(musicService.getMediaSessionToken());
 ```
 
 Please refer to the example app for for info
