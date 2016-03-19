@@ -72,4 +72,4 @@ The <b>MediaControlFragment</b> implements some basic transport and metadata con
 mediaControlFragment = MediaControlFragment.newInstance(musicService.getMediaSessionToken());
 ```
 
-Please refer to the example app for for info
+Please refer to the example app for more info
