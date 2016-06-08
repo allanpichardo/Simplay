@@ -3,6 +3,9 @@ Simplay is a simple, reusable API for implementing audio playback applications o
 
 By using the MusicService and the optional MediaControlFragment, Simplay allows you to easily stream audio without worrying about the cumbersome MediaPlayer API.
 
+### Gradle Setup:
+```compile 'mylovemhz:simplay:0.2.0'```
+
 ## Usage
 The <b>MusicService</b> handles playback and queing, so at the most basic level, all you need to do is bind to the service and implement its callbacks.
 
